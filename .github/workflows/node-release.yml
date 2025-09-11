@@ -101,8 +101,8 @@ jobs:
         with:
           tag: v${{ needs.release-check.outputs.current-version }}
           name: v${{ needs.release-check.outputs.current-version  }}
-          bodyFile: changelog_for_version.md
-          artifacts: "dist.zip"
+          bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
+          artifacts: ${{ inputs.working-directory }}/dist.zip
           allowUpdates: true
           draft: false
           prerelease: false
