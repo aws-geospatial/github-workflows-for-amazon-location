@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: "."
+      release-tag: # used as optional paramter where users can add tags to their release. Eg: JS-v.0.1.2
+        description: "Optional release tag override"
+        required: false
+        type: string
+        default: ""
     secrets:
       NPM_ORG_TOKEN:
         description: "NPM organization token"
@@ -99,7 +104,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag: v${{ needs.release-check.outputs.current-version }}
+          tag: ${{ inputs.release-tag }}-v${{ needs.release-check.outputs.current-version }}
           name: v${{ needs.release-check.outputs.current-version  }}
           bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
           artifacts: ${{ inputs.working-directory }}/dist.zip
