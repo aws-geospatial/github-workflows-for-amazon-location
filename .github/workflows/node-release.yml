@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: "18.x"
+      working-directory:
+        description: "Working directory for the package"
+        required: false
+        type: string
+        default: "."
     secrets:
       NPM_ORG_TOKEN:
         description: "NPM organization token"
@@ -20,6 +25,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v3
       - name: Use Node.js ${{ inputs.node-version }}
@@ -50,6 +56,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # for publishing release to GitHub
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v3
       - name: Use Node.js ${{ inputs.node-version }}
@@ -106,6 +115,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v3
       - name: Use Node.js ${{ inputs.node-version }}
