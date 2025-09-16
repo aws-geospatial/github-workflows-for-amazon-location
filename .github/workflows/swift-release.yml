@@ -34,10 +34,10 @@ jobs:
         with:
           fetch-depth: 0 # fetch tags as well
 
-      - name: Read version from Package.Version
+      - name: Read version from Package.version
         id: read-version
         run: |
-          version=$(jq -r '.version' Package.Version)
+          version=$(jq -r '.version' Package.version)
           echo "current-version=$version" >> $GITHUB_OUTPUT
 
       - name: Check if tag already exists
@@ -72,6 +72,9 @@ jobs:
       - name: Build Swift package
         run: swift build -v
 
+      - name: Run tests
+        run: swift test -v
+
       - name: Extract changelog for version
         run: |
           if [ -f "CHANGELOG.md" ]; then
@@ -97,7 +100,7 @@ jobs:
         with:
           tag: ${{ needs.release-check.outputs.current-version }}
           name: ${{ needs.release-check.outputs.current-version }}
-          bodyFile: changelog_for_version.md
+          bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
           allowUpdates: true
           draft: false
           prerelease: false
