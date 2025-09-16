@@ -1,0 +1,82 @@
+name: Swift Release
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  release-check:
+    name: Check if version is published
+    runs-on: ubuntu-latest
+    outputs:
+      current-version: ${{ steps.check.outputs.current-version }}
+      published: ${{ steps.check.outputs.published }}
+      previous-version: ${{ steps.check.outputs.previous-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fetches tags to get version history
+
+      - name: Read version from Package.Version
+        id: read-version
+        run: |
+          version=$(jq -r '.version' Package.Version)
+          echo "current-version=$version" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          current="${{ steps.read-version.outputs.current-version }}"
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+
+          if git rev-parse "v$current" >/dev/null 2>&1; then
+            published=true
+          else
+            published=false
+          fi
+
+          echo "published=$published" >> $GITHUB_OUTPUT
+          echo "previous-version=$previous" >> $GITHUB_OUTPUT
+          echo "current-version=v$current" >> $GITHUB_OUTPUT
+
+  release:
+    name: Release to GitHub
+    needs: release-check
+    if: ${{ needs.release-check.outputs.published == 'false' }}
+    runs-on: macos-latest
+    permissions:
+      contents: write # for publishing release to GitHub
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Swift package
+        run: swift build -v
+
+      - name: Extract changelog for version
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            awk "/# ${{ needs.release-check.outputs.current-version }}/,/^#/" CHANGELOG.md | sed '$d' > changelog_for_version.md || \
+            echo "Release ${{ needs.release-check.outputs.current-version }}" > changelog_for_version.md
+          else
+            echo "Release ${{ needs.release-check.outputs.current-version }}" > changelog_for_version.md
+          fi
+          cat changelog_for_version.md
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ needs.release-check.outputs.current-version }}
+          git push origin ${{ needs.release-check.outputs.current-version }}
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ needs.release-check.outputs.current-version }}
+          name: ${{ needs.release-check.outputs.current-version }}
+          bodyFile: changelog_for_version.md
+          allowUpdates: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
