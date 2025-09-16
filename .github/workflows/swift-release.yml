@@ -1,13 +1,30 @@
-name: Swift Release
+name: Swift Package Release
 
 on:
-  push:
-    branches: ["main"]
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory where Swift package is located"
+        required: false
+        type: string
+        default: "."
+      release-tag-prefix:
+        description: "Prefix for release tags"
+        required: false
+        type: string
+        default: "v"
+    secrets:
+      GITHUB_TOKEN:
+        required: true
 
 jobs:
   release-check:
     name: Check if version is published
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
     outputs:
       current-version: ${{ steps.check.outputs.current-version }}
       published: ${{ steps.check.outputs.published }}
@@ -15,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # fetches tags to get version history
+          fetch-depth: 0 # fetch tags as well
 
       - name: Read version from Package.Version
         id: read-version
@@ -27,9 +44,9 @@ jobs:
         id: check
         run: |
           current="${{ steps.read-version.outputs.current-version }}"
-          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "${{ inputs.release-tag-prefix }}0.0.0")
 
-          if git rev-parse "v$current" >/dev/null 2>&1; then
+          if git rev-parse "${{ inputs.release-tag-prefix }}$current" >/dev/null 2>&1; then
             published=true
           else
             published=false
@@ -37,15 +54,18 @@ jobs:
 
           echo "published=$published" >> $GITHUB_OUTPUT
           echo "previous-version=$previous" >> $GITHUB_OUTPUT
-          echo "current-version=v$current" >> $GITHUB_OUTPUT
+          echo "current-version=${{ inputs.release-tag-prefix }}$current" >> $GITHUB_OUTPUT
 
-  release:
-    name: Release to GitHub
+  release_to_github:
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
     runs-on: macos-latest
     permissions:
       contents: write # for publishing release to GitHub
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@v4
 
@@ -69,8 +89,11 @@ jobs:
           git tag ${{ needs.release-check.outputs.current-version }}
           git push origin ${{ needs.release-check.outputs.current-version }}
 
-      - name: Publish GitHub Release
+      - name: Update Release Notes
+        id: update_release_notes
         uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ needs.release-check.outputs.current-version }}
           name: ${{ needs.release-check.outputs.current-version }}
@@ -78,5 +101,3 @@ jobs:
           allowUpdates: true
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
