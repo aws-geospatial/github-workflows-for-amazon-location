@@ -13,8 +13,13 @@ on:
         required: false
         type: string
         default: "."
-      release-tag: # used as optional paramter where users can add tags to their release. Eg: JS-v.0.1.2
-        description: "Optional release tag override"
+      release-tag-prefix: # used as optional paramter where users can add tags to their release. Eg: js-v.0.1.2
+        description: "Optional release tag prefix"
+        required: false
+        type: string
+        default: ""
+      release-title-prefix: # used as optional paramter where users can customize their release title. Eg: JS-v.0.1.2
+        description: "Optional release title prefix"
         required: false
         type: string
         default: ""
@@ -104,8 +109,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag: ${{ inputs.release-tag }}v${{ needs.release-check.outputs.current-version }}
-          name: v${{ needs.release-check.outputs.current-version  }}
+          tag: ${{ inputs.release-tag-prefix }}v${{ needs.release-check.outputs.current-version }}
+          name: ${{ inputs.release-title-prefix }}v${{ needs.release-check.outputs.current-version  }}
           bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
           artifacts: ${{ inputs.working-directory }}/dist.zip
           allowUpdates: true
