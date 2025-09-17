@@ -8,11 +8,11 @@ on:
         required: false
         type: string
         default: "."
-      release-tag-prefix:
-        description: "Prefix for release tags"
+      release-title-prefix: # used as optional paramter where users can customize their release title. Eg: Swift-v0.1.2
+        description: "Optional release title prefix"
         required: false
         type: string
-        default: "v"
+        default: ""
 
 jobs:
   release-check:
@@ -41,9 +41,9 @@ jobs:
         id: check
         run: |
           current="${{ steps.read-version.outputs.current-version }}"
-          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "${{ inputs.release-tag-prefix }}0.0.0")
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
 
-          if git rev-parse "${{ inputs.release-tag-prefix }}$current" >/dev/null 2>&1; then
+          if git rev-parse "$current" >/dev/null 2>&1; then
             published=true
           else
             published=false
@@ -51,7 +51,7 @@ jobs:
 
           echo "published=$published" >> $GITHUB_OUTPUT
           echo "previous-version=$previous" >> $GITHUB_OUTPUT
-          echo "current-version=${{ inputs.release-tag-prefix }}$current" >> $GITHUB_OUTPUT
+          echo "current-version=$current" >> $GITHUB_OUTPUT
 
   release_to_github:
     needs: release-check
@@ -96,7 +96,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ needs.release-check.outputs.current-version }}
-          name: ${{ needs.release-check.outputs.current-version }}
+          name: ${{ inputs.release-title-prefix }}v${{ needs.release-check.outputs.current-version }}
           bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
           allowUpdates: true
           draft: false
