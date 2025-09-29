@@ -1,0 +1,131 @@
+name: Kotlin Package Release
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory where Kotlin package is located"
+        required: false
+        type: string
+        default: "."
+      release-title-prefix:
+        description: "Optional release title prefix"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      SONATYPE_ACCOUNT_USERNAME:
+        required: true
+      SONATYPE_ACCOUNT_PASSWORD:
+        required: true
+      SONATYPE_ACCOUNT_GPG_KEY:
+        required: true
+      SONATYPE_ACCOUNT_GPG_KEY_ID:
+        required: true
+      SONATYPE_ACCOUNT_GPG_KEY_PASSWORD:
+        required: true
+
+jobs:
+  release-check:
+    name: Check if version is published
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    outputs:
+      current-version: ${{ steps.check.outputs.current-version }}
+      published: ${{ steps.check.outputs.published }}
+      previous-version: ${{ steps.check.outputs.previous-version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from build.gradle.kts
+        id: read-version
+        run: |
+          version=$(grep 'coordinates.*auth.*' library/build.gradle.kts | sed 's/.*"\([^"]*\)".*/\1/')
+          echo "current-version=$version" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          current="${{ steps.read-version.outputs.current-version }}"
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+
+          if git rev-parse "v$current" >/dev/null 2>&1; then
+            published=true
+          else
+            published=false
+          fi
+
+          echo "published=$published" >> $GITHUB_OUTPUT
+          echo "previous-version=$previous" >> $GITHUB_OUTPUT
+          echo "current-version=$current" >> $GITHUB_OUTPUT
+
+  release_to_github_and_maven:
+    needs: release-check
+    if: ${{ needs.release-check.outputs.published == 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Run tests
+        run: ./gradlew test
+
+      - name: Extract changelog for version
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            awk '/# ${{needs.release-check.outputs.current-version }}/{f=1;next}/# ${{needs.release-check.outputs.previous-version}}/{f=0} f' CHANGELOG.md > changelog_for_version.md
+          else
+            echo "Release ${{ needs.release-check.outputs.current-version }}" > changelog_for_version.md
+          fi
+          cat changelog_for_version.md
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ needs.release-check.outputs.current-version }}
+          git push origin ${{ needs.release-check.outputs.current-version }}
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_ACCOUNT_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_ACCOUNT_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_PASSWORD }}
+        run: ./gradlew publishToMavenCentral
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ needs.release-check.outputs.current-version }}
+          name: ${{ inputs.release-title-prefix }}v${{ needs.release-check.outputs.current-version }}
+          bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
+          allowUpdates: true
+          draft: false
+          prerelease: false
