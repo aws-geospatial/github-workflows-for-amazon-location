@@ -59,7 +59,7 @@ jobs:
           current="${{ steps.read-version.outputs.current-version }}"
           prefix="${{ inputs.release-tag-prefix }}"
           tag_name="${prefix}v$current"
-          
+
           if [ -n "$prefix" ]; then
             previous=$(git tag -l "${prefix}v*" --sort=-version:refname | head -n1 | sed "s/${prefix}v//" || echo "0.0.0")
           else
@@ -142,4 +142,4 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_PASSWORD }}
-        run: ./gradlew publishToMavenCentral
+        run: ./gradlew :library:publishAndReleaseToMavenCentral
