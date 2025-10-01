@@ -50,7 +50,7 @@ jobs:
       - name: Read version from build.gradle.kts
         id: read-version
         run: |
-          version=$(grep 'coordinates.*auth.*' library/build.gradle.kts | sed 's/.*"\([^"]*\)".*/\1/')
+          version=$(grep 'coordinates.*software\.amazon' library/build.gradle.kts | sed 's/.*"\([^"]*\)".*/\1/')
           echo "current-version=$version" >> $GITHUB_OUTPUT
 
       - name: Check if tag already exists
