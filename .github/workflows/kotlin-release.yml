@@ -8,8 +8,13 @@ on:
         required: false
         type: string
         default: "."
+      release-tag-prefix: # used as optional paramter where users can add tags to their release. Eg: kotlin-v.0.1.2
+        description: "Optional release tag prefix"
+        required: false
+        type: string
+        default: ""
       release-title-prefix:
-        description: "Optional release title prefix"
+        description: "Optional release title prefix" # used as optional paramter where users can customize their release title. Eg: Kotlin-v.0.1.2
         required: false
         type: string
         default: ""
@@ -52,9 +57,16 @@ jobs:
         id: check
         run: |
           current="${{ steps.read-version.outputs.current-version }}"
-          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          prefix="${{ inputs.release-tag-prefix }}"
+          tag_name="${prefix}v$current"
+          
+          if [ -n "$prefix" ]; then
+            previous=$(git tag -l "${prefix}v*" --sort=-version:refname | head -n1 | sed "s/${prefix}v//" || echo "0.0.0")
+          else
+            previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          fi
 
-          if git rev-parse "v$current" >/dev/null 2>&1; then
+          if git rev-parse "$tag_name" >/dev/null 2>&1; then
             published=true
           else
             published=false
@@ -106,8 +118,22 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag ${{ needs.release-check.outputs.current-version }}
-          git push origin ${{ needs.release-check.outputs.current-version }}
+          prefix="${{ inputs.release-tag-prefix }}"
+          tag_name="${prefix}v${{ needs.release-check.outputs.current-version }}"
+          git tag "$tag_name"
+          git push origin "$tag_name"
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag: ${{ inputs.release-tag-prefix }}v${{ needs.release-check.outputs.current-version }}
+          name: ${{ inputs.release-title-prefix }}v${{ needs.release-check.outputs.current-version }}
+          bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
+          allowUpdates: true
+          draft: false
+          prerelease: false
 
       - name: Publish to Maven Central
         env:
@@ -117,15 +143,3 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_PASSWORD }}
         run: ./gradlew publishToMavenCentral
-
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag: ${{ needs.release-check.outputs.current-version }}
-          name: ${{ inputs.release-title-prefix }}v${{ needs.release-check.outputs.current-version }}
-          bodyFile: ${{ inputs.working-directory }}/changelog_for_version.md
-          allowUpdates: true
-          draft: false
-          prerelease: false
