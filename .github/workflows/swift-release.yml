@@ -41,7 +41,8 @@ jobs:
         id: check
         run: |
           current="${{ steps.read-version.outputs.current-version }}"
-          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          # Always filter only semantic version tags (x.y.z format) for Swift SPM compatibility
+          previous=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
 
           if git rev-parse "$current" >/dev/null 2>&1; then
             published=true
@@ -85,8 +86,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag ${{ needs.release-check.outputs.current-version }}
-          git push origin ${{ needs.release-check.outputs.current-version }}
+          version="${{ needs.release-check.outputs.current-version }}"
+          git tag "$version"
+          git push origin "$version"
 
       - name: Update Release Notes
         id: update_release_notes
