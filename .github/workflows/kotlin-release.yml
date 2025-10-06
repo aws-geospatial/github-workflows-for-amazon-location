@@ -76,13 +76,12 @@ jobs:
           echo "previous-version=$previous" >> $GITHUB_OUTPUT
           echo "current-version=$current" >> $GITHUB_OUTPUT
 
-  release_to_github_and_maven:
+  publish_to_maven:
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      actions: write
+      actions: read
     defaults:
       run:
         shell: bash
@@ -104,6 +103,28 @@ jobs:
 
       - name: Run tests
         run: ./gradlew test
+
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_ACCOUNT_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_ACCOUNT_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_PASSWORD }}
+        run: ./gradlew :library:publishAndReleaseToMavenCentral
+
+  release_to_github:
+    needs: publish_to_maven
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Extract changelog for version
         run: |
@@ -134,12 +155,3 @@ jobs:
           allowUpdates: true
           draft: false
           prerelease: false
-
-      - name: Publish to Maven Central
-        env:
-          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_ACCOUNT_USERNAME }}
-          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_ACCOUNT_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_ID }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SONATYPE_ACCOUNT_GPG_KEY_PASSWORD }}
-        run: ./gradlew :library:publishAndReleaseToMavenCentral

@@ -60,9 +60,65 @@ jobs:
       previous-version: ${{ steps.check.outputs.previous-version }}
       current-version: ${{ steps.check.outputs.current-version }}
 
-  release_to_github:
+  publish_npm:
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write # for publishing package to NPM
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ inputs.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Build package
+        run: |
+          if npm run | grep -q "prepublishOnly"; then
+            npm run prepublishOnly
+          elif npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No build script found, skipping build step"
+          fi
+
+      - name: Get version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+
+      - name: Prepare release
+        id: prepare_release
+        run: |
+          RELEASE_TYPE="$(node -e "console.log(require('semver').prerelease('${{ steps.package-version.outputs.current-version }}') ? 'prerelease' : 'regular')")"
+          if [[ $RELEASE_TYPE == 'regular' ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to NPM (release)
+        if: ${{ steps.prepare_release.outputs.prerelease == 'false'}}
+        run: |
+          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+          npm publish --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
+      - name: Publish to NPM (prerelease)
+        if: ${{ steps.prepare_release.outputs.prerelease == 'true'}}
+        run: |
+          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+          npm publish --tag next --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
+
+  release_to_github:
+    needs: publish_npm
     runs-on: ubuntu-latest
     permissions:
       contents: write # for publishing release to GitHub
@@ -116,51 +172,3 @@ jobs:
           allowUpdates: true
           draft: false
           prerelease: false
-
-  publish_npm:
-    needs: release_to_github
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write # for publishing package to NPM
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ inputs.working-directory }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ inputs.node-version }}
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Get version
-        id: package-version
-        uses: martinbeentjes/npm-get-version-action@v1.3.1
-
-      - name: Prepare release
-        id: prepare_release
-        run: |
-          RELEASE_TYPE="$(node -e "console.log(require('semver').prerelease('${{ steps.package-version.outputs.current-version }}') ? 'prerelease' : 'regular')")"
-          if [[ $RELEASE_TYPE == 'regular' ]]; then
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish to NPM (release)
-        if: ${{ steps.prepare_release.outputs.prerelease == 'false'}}
-        run: |
-          echo "dist file does exist"
-          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
-          npm publish --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
-      - name: Publish to NPM (prerelease)
-        if: ${{ steps.prepare_release.outputs.prerelease == 'true'}}
-        run: |
-          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
-          npm publish --tag next --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
