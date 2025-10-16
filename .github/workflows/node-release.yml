@@ -23,10 +23,7 @@ on:
         required: false
         type: string
         default: ""
-    secrets:
-      NPM_ORG_TOKEN:
-        description: "NPM organization token"
-        required: true
+
 
 jobs:
   release-check:
@@ -65,7 +62,8 @@ jobs:
     if: ${{ needs.release-check.outputs.published == 'false' }}
     runs-on: ubuntu-latest
     permissions:
-      packages: write # for publishing package to NPM
+      id-token: write # for trusted publisher
+      contents: read
     defaults:
       run:
         shell: bash
@@ -76,6 +74,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ inputs.node-version }}
+          registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
         run: npm ci
       - name: Build package
@@ -104,18 +103,10 @@ jobs:
 
       - name: Publish to NPM (release)
         if: ${{ steps.prepare_release.outputs.prerelease == 'false'}}
-        run: |
-          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
-          npm publish --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
+        run: npm publish --access public
       - name: Publish to NPM (prerelease)
         if: ${{ steps.prepare_release.outputs.prerelease == 'true'}}
-        run: |
-          npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
-          npm publish --tag next --access public
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_ORG_TOKEN }}
+        run: npm publish --tag next --access public
 
   release_to_github:
     needs: publish_npm
