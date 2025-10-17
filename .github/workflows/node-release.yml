@@ -25,6 +25,7 @@ on:
         default: ""
 
 
+
 jobs:
   release-check:
     name: Check if version is published
@@ -61,9 +62,7 @@ jobs:
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # for trusted publisher
-      contents: read
+
     defaults:
       run:
         shell: bash
