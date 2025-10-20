@@ -7,7 +7,7 @@ on:
         description: "Node.js version to use"
         required: false
         type: string
-        default: "18.x"
+        default: "20" # Require version 20 or above for automated release
       working-directory:
         description: "Working directory for the package"
         required: false
@@ -33,9 +33,9 @@ jobs:
         shell: bash
         working-directory: ${{ inputs.working-directory }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Use Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
       - name: Install dependencies
@@ -60,18 +60,22 @@ jobs:
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
     runs-on: ubuntu-latest
-
+    permissions:
+      id-token: write # required for generating OIDC token for trusted publisher
+      contents: write
     defaults:
       run:
         shell: bash
         working-directory: ${{ inputs.working-directory }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Use Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: "https://registry.npmjs.org"
+      - name: Update npm # required for trusted publisher
+        run: npm install -g npm@latest
       - name: Install dependencies
         run: npm ci
       - name: Build package
@@ -114,9 +118,9 @@ jobs:
       run:
         working-directory: ${{ inputs.working-directory }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Use Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
       - name: Install dependencies
