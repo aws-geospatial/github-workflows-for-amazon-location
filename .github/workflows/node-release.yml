@@ -110,7 +110,7 @@ jobs:
         run: npm publish --tag next --access public
 
   release_to_github:
-    needs: publish_npm
+    needs: [release-check, publish_npm]
     runs-on: ubuntu-latest
     permissions:
       contents: write # for publishing release to GitHub
