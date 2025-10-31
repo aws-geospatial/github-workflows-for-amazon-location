@@ -47,7 +47,12 @@ jobs:
           packageName="$( node -e "console.log(require('./package.json').name)" )"
           currentVersion="$( node -e "console.log(require('./package.json').version)" )"
           previousVersion="$(npm view $packageName version 2>/dev/null || echo '0.0.0')" 
-          isPublished="$(npm view $packageName --json 2>/dev/null | jq -c --arg cv "$currentVersion" 'any(. == $cv)' || echo 'false')"
+          # Fix: Handle first-time publishing by checking if specific version exists
+          if npm view $packageName@$currentVersion version >/dev/null 2>&1; then
+            isPublished="true"
+          else
+            isPublished="false"
+          fi
           echo "published=$isPublished" >> "$GITHUB_OUTPUT"
           echo "previous-version=$previousVersion" >> "$GITHUB_OUTPUT"
           echo "current-version=$currentVersion" >> "$GITHUB_OUTPUT"
