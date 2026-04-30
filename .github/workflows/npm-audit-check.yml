@@ -6,8 +6,6 @@ name: NPM Audit Check
 # Rationale: published packages only contain `dependencies`, not `devDependencies`,
 # so auditing the source tree produces false positives (CVEs in tooling customers
 # never install). This workflow audits what customers actually get from npm.
-#
-# Per AZLS-696.
 
 on:
   workflow_call:
@@ -35,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Resolve package name
         id: pkg
